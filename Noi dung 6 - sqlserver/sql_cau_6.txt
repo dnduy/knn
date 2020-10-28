@@ -1,0 +1,127 @@
+--Tạo cơ sở dữ liệu
+create database QLBH
+use QLBH
+
+/*Tạo bảng*/
+
+create table KHACH_HANG(
+	Ma_KH char(4) not null primary key,
+	Ten_KH nvarchar(64), 
+	Gioi_tinh nvarchar(3), 
+	Ngay_sinh date, 
+	Dia_chi nvarchar(64), 
+	So_dien_thoai varchar(32), 
+	Email varchar(64), 
+	Trang_thai nvarchar(32)
+)
+
+
+create table SAN_PHAM( 
+	Ma_SP char(4) not null primary key, 
+	Ten_SP nvarchar(64) not null, 
+	Ngay_cap_nhat datetime not null, 
+	Hinh_anh image, 
+	So_luong tinyint not null,
+	Don_gia money not null, 
+	Mo_ta nvarchar(64), 
+	Trang_thai nvarchar(32)
+);  
+
+drop table HOA_DON
+
+create table HOA_DON(
+	Ma_HD char(4) not null primary key, 
+	Ngay_HD datetime not null, 
+	Ma_KH char(4) not null, 
+	Loai_HD nvarchar(10) not null, 
+	Tong_tri_gia money, 
+	Trang_thai nvarchar(32) not null,
+	constraint fk_HD_SP foreign key (Ma_KH) references KHACH_HANG (Ma_KH)
+)
+
+
+create table CT_HOA_DON(
+	Ma_HD char(4) not null, 
+	Ma_SP char(4) not null, 
+	Loai_HD nvarchar(10) not null, 
+	So_luong tinyint not null, 
+	Don_gia money, 
+	Thanh_tien money,
+	primary key (Ma_HD, Ma_SP, Loai_HD),
+	constraint fk_CTHD_HD foreign key (Ma_HD) references HOA_DON (Ma_HD),
+	constraint fk_CTHD_SP foreign key (Ma_SP) references SAN_PHAM (Ma_SP)
+); 
+
+
+/*Nhập cơ sở dữ liệu*/
+insert into SAN_PHAM (Ma_SP, Ten_SP, Ngay_cap_nhat, So_luong, Don_gia)
+values	('SP01', N'Coca Cola', '2020/10/10', 25, 12000),
+		('SP02', N'Xà phòng Omo', '2020/6/20', 22, 30000),
+		('SP03', N'Nước mắm Chinsu', '2020/8/22', 15, 46000),
+		('SP04', N'Bia Huda', '2020/10/15', 18, 12000),
+		('SP05', N'Bia Heniken', '2020/10/20', 50, 25000)
+
+insert into KHACH_HANG (Ma_KH, Ten_KH, Gioi_tinh, Ngay_sinh, Dia_chi, So_dien_thoai, Email)
+values	('KH01', N'Nguyễn Hoài Giang', N'Nam', '2002/10/05', N'Quảng Trị', '0333565696', 'nguyenhoaigiang@gmail.com'),
+		('KH02', N'Phan Văn Trí', N'Nam', '2000/10/20', N'Quảng Bình', '0333454545', 'phanvantri@gmail.com'),
+		('KH03', N'Nguyễn Tố My', N'Nữ', '2005/10/06', N'Bến Tre', '0354793932', 'nguyentomy@gmail.com'),
+		('KH04', N'Lê Thị Thơm', N'Nữ', '1980/06/26', N'Huế', '0375898989', 'lethithom@gmail.com'),
+		('KH05', N'Đoàn Văn Thành', N'Nam', '1989/10/06', N'Hội An', '0363696969', 'doanvanthanh@gmail.com')
+
+
+insert into HOA_DON (Ma_HD, Ngay_HD, Ma_KH, Loai_HD, Trang_thai)
+values	('HD01', '2020/8/16', 'KH01', N'Nhập', N'Đã thanh toán'),
+		('HD02', '2020/09/28', 'KH02', N'Bán', N'Đã thanh toán'),
+		('HD03', '2020/06/12', 'KH02', N'Nhập', N'Chưa thanh toán'),
+		('HD04', '2020/11/15', 'KH03', N'Bán', N'Đã thanh toán'),
+		('HD05', '2020/10/14', 'KH04', N'Bán', N'Đã thanh toán')
+
+
+insert into CT_HOA_DON(Ma_HD, Ma_SP, Loai_HD, So_luong)
+values	('HD01', 'SP02', N'Nhập', 3),
+		('HD01', 'SP03', N'Nhập', 5),
+		('HD02', 'SP03', N'Bán', 6),
+		('HD02', 'SP04', N'Bán', 6),
+		('HD03', 'SP04', N'Nhập', 8),
+		('HD04', 'SP03', N'Bán', 18),
+		('HD05', 'SP05', N'Bán', 22)
+
+/*Cập nhật thông tin cho thuộc tính đơn giá trong bảng CT_HOA_DON */
+update CT_HOA_DON
+set Don_gia = (	select Don_gia 
+				from SAN_PHAM
+				where CT_HOA_DON.Ma_SP = SAN_PHAM.Ma_SP)
+
+/*Cập nhật thông tin cho thuộc tính thành tiền trong bảng CT_HOA_DON */
+update CT_HOA_DON
+set Thanh_tien = So_luong*Don_gia
+
+/*Cập nhật thông tin cho thuộc tính tổng giá trị cho bảng hóa đơn*/
+update HOA_DON
+set Tong_tri_gia = (select SUM (So_luong*Don_gia)
+					from CT_HOA_DON
+					where CT_HOA_DON.Ma_HD=HOA_DON.Ma_HD
+					group by Ma_HD)
+
+
+drop view Thong_ke
+/*Thực hiện rút trích ra các khách hàng có đặt mua nhiều mặt hàng nhất*/
+select top 1 Ma_KH, sum(SL_San_Pham) as SL_mat_hang
+from (	select CT.Ma_HD, HD.Ma_KH, count(Ma_SP) as SL_San_Pham
+		from CT_HOA_DON CT, HOA_DON HD
+		where CT.Ma_HD=HD.Ma_HD and HD.Loai_HD=N'Bán'
+		group by CT.Ma_HD, HD.Ma_KH) Thong_ke
+group by Ma_KH
+
+
+
+/*Thực hiện thống kê tổng trị giá hóa đơn nhập và tổng trị giá hóa đơn xuất theo từng khách hàng*/
+select Ma_KH, sum(Tong_tri_gia) as Tong_tri_gia_HD_nhap, null Tong_tri_gia_HD_xuat
+from HOA_DON HD
+where HD.Loai_HD = N'Nhập'
+group by Ma_KH
+union all
+select Ma_KH, null Tong_tri_gia_HD_nhap, sum(Tong_tri_gia) as Tong_tri_gia_HD_xuat
+from HOA_DON HD
+where HD.Loai_HD = N'Bán'
+group by Ma_KH
